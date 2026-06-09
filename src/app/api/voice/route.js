@@ -5,22 +5,26 @@ const VoiceResponse = twilio.twiml.VoiceResponse;
 
 export async function POST(req) {
   try {
-    // Twilio sends data as application/x-www-form-urlencoded
-    const formData = await req.formData();
+    // Read the raw text body for Twilio's application/x-www-form-urlencoded payload
+    const bodyText = await req.text();
+    const formData = new URLSearchParams(bodyText);
+    
     const to = formData.get('To');
-    // We can also receive the callerId if passed from the frontend, 
-    // or just use the user's default number. Let's assume the frontend passes it in params.
     const callerId = formData.get('CallerId'); 
 
     const twiml = new VoiceResponse();
 
     if (to) {
-      // Dial the number
-      const dial = twiml.dial({
-        callerId: callerId || '+1234567890', // Fallback if callerId isn't provided
-      });
+      // Dial the number. Use the provided CallerId, or omit it if not provided.
+      // If you don't provide a valid Twilio Caller ID, Twilio will reject the call.
+      const dialOptions = {};
+      if (callerId && callerId.trim() !== '') {
+        dialOptions.callerId = callerId.trim();
+      }
       
-      // Check if it's a regular phone number (simplistic check)
+      const dial = twiml.dial(dialOptions);
+      
+      // Basic check to see if it's a phone number or client identifier
       if (/^[\d\+\-\(\) ]+$/.test(to)) {
         dial.number(to);
       } else {
@@ -30,7 +34,6 @@ export async function POST(req) {
       twiml.say('Thanks for calling! We could not find the destination number.');
     }
 
-    // Return the TwiML as XML
     return new NextResponse(twiml.toString(), {
       headers: {
         'Content-Type': 'text/xml',
